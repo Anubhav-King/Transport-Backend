@@ -6,8 +6,9 @@ const userSchema = new mongoose.Schema({
   mobile: String,
   role: { type: [String], enum: ['Admin', 'Concierge', 'Transport', 'Chauffeur'] },
   password: String,
-  available: { type: Boolean, default: true },       // NEW: for Chauffeurs
-  reason: { type: String },                          // NEW: if unavailable
+  mustChange: { type: Boolean, default: false },       // ✅ Add this line
+  available: { type: Boolean, default: true },          // for Chauffeurs
+  reason: { type: String },                             // if unavailable
 }, { timestamps: true });
 
 export default mongoose.model('User', userSchema);

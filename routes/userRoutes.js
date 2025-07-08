@@ -1,9 +1,9 @@
-// routes/userRoutes.js
-const express = require('express');
+import express from 'express';
+import bcrypt from 'bcrypt';
+import User from '../models/User.js';
+import verifyToken from '../middleware/auth.js';
+
 const router = express.Router();
-const User = require('../models/User');
-const bcrypt = require('bcrypt');
-const verifyToken = require('../middleware/auth');
 
 router.patch('/change-password', verifyToken, async (req, res) => {
   try {
@@ -18,12 +18,14 @@ router.patch('/change-password', verifyToken, async (req, res) => {
 
     const hashed = await bcrypt.hash(newPassword, 10);
     user.password = hashed;
+    user.mustChange = false;
     await user.save();
 
     res.json({ message: 'Password changed successfully' });
   } catch (err) {
+    console.error('Change Password Error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-module.exports = router;
+export default router; // ✅ ES module export

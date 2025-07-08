@@ -11,7 +11,7 @@ import reportRoutes from './routes/report.js';
 import { startDailySummaryJob } from './cron/dailySummary.js';
 import adminRoutes from './routes/adminRoutes.js';
 import activityRoutes from './routes/adminRoutes.js';
-//import RoleChangeLog from "../models/RoleChangeLog.js";
+import userRoutes from './routes/userRoutes.js';
 
 
 dotenv.config();
@@ -30,7 +30,8 @@ app.use("/api/settings", settingsRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/adminRoutes', activityRoutes);
-//app.use('/api/role-change-logs', RoleChangeLog)
+app.use('/api/users', userRoutes);
+
 
 
 // Connect DB and Start Server

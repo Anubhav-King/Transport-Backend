@@ -17,7 +17,15 @@ router.post('/register', verifyToken, async (req, res) => {
     if (existing) return res.status(400).json({ message: 'User already exists' });
 
     const hashed = await bcrypt.hash('Monday01', 10);
-    const user = new User({ name, mobile, role, password: hashed });
+
+    const user = new User({
+      name,
+      mobile,
+      role,
+      password: hashed,
+      mustChange: true, // ✅ enforce password change
+    });
+
     await user.save();
 
     // 🔍 Log creation
@@ -36,6 +44,7 @@ router.post('/register', verifyToken, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
 
 // 🔐 One-time Admin Registration
 router.post('/register-admin', async (req, res) => {
@@ -211,12 +220,16 @@ router.get('/chauffeurs', verifyToken, async (req, res) => {
 router.post('/reset-password/:id', verifyToken, async (req, res) => {
   try {
     const hashed = await bcrypt.hash('Monday01', 10);
-    await User.findByIdAndUpdate(req.params.id, { password: hashed });
-    res.json({ message: 'Password reset to Monday01' });
+    await User.findByIdAndUpdate(req.params.id, {
+      password: hashed,
+      mustChange: true, // ✅ enforce password change on next login
+    });
+    res.json({ message: 'Password reset to Monday01. User must change it on next login.' });
   } catch (err) {
     console.error('Password Reset Error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
+
 
 export default router;
