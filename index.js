@@ -10,6 +10,7 @@ import fleetRoutes from './routes/fleet.js'; // ⬅️ Add this line
 import reportRoutes from './routes/report.js';
 import { startDailySummaryJob } from './cron/dailySummary.js';
 import adminRoutes from './routes/adminRoutes.js';
+import activityRoutes from './routes/adminRoutes.js';
 //import RoleChangeLog from "../models/RoleChangeLog.js";
 
 
@@ -28,6 +29,7 @@ app.use('/api/fleet', fleetRoutes); // ⬅️ Add this line after other routes
 app.use("/api/settings", settingsRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/adminRoutes', activityRoutes);
 //app.use('/api/role-change-logs', RoleChangeLog)
 
 

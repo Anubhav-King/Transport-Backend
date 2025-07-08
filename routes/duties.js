@@ -62,6 +62,7 @@ router.patch("/:id/cancel", verifyToken, async (req, res) => {
     // ✅ Log before responding
     await logActivity({
       userId: req.user.id,
+      userName: req.user.name,
       role: req.user.role,
       action: `Cancelled duty (Reason: ${reason})`,
       dutyId: duty._id,
@@ -91,8 +92,13 @@ router.patch("/:id", verifyToken, async (req, res) => {
     const previousCar = duty.carNumber;
     const previousChauffeur = duty.chauffeurName;
 
-    duty.carNumber = carNumber || duty.carNumber;
-    duty.chauffeurName = chauffeurName || duty.chauffeurName;
+    if ('carNumber' in req.body) duty.carNumber = carNumber;
+    if ('chauffeurName' in req.body) duty.chauffeurName = chauffeurName;
+    if (!carNumber && !chauffeurName) {
+      duty.status = "pending";
+      duty.statusHistory.push({ status: "pending", timestamp: new Date() });
+    }
+
 
     // If both assigned and status is still pending, move to active
     if (carNumber && chauffeurName && duty.status === "pending") {
@@ -110,6 +116,7 @@ router.patch("/:id", verifyToken, async (req, res) => {
 
     await logActivity({
       userId: req.user.id,
+      userName: req.user.name,
       role: req.user.role,
       action,
       dutyId: duty._id,
@@ -327,6 +334,7 @@ router.patch("/verify-transport/:id", verifyToken, async (req, res) => {
     // ✅ Log the verification
     await logActivity({
       userId: req.user.id,
+      userName: req.user.name,
       role: req.user.role,
       action: `Verified Transport Duty ${duty.tripID || duty._id}`,
       dutyId: duty._id,
@@ -405,6 +413,7 @@ router.patch("/verify-concierge/:id", verifyToken, async (req, res) => {
     // ✅ Log activity
     await logActivity({
       userId: req.user.id,
+      userName: req.user.name,
       role: req.user.role,
       action: `Verified & Completed Duty ${duty.tripID || duty._id}`,
       dutyId: duty._id,
@@ -493,6 +502,7 @@ router.post("/", verifyToken, async (req, res) => {
     // ✅ Log activity
     await logActivity({
       userId: req.user.id,
+      userName: req.user.name,
       role: req.user.role,
       action: `Created new duty for ${guestName} (${tripID})`,
       dutyId: newDuty._id,

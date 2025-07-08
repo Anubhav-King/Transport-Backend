@@ -1,16 +1,20 @@
 import ActivityLog from '../models/ActivityLog.js';
-import User from '../models/User.js';
 
-const logActivity = async ({ userId, role, action, dutyId = null }) => {
-  const user = await User.findById(userId);
-  const log = new ActivityLog({
-    userId,
-    userName: user?.name || '',
-    role,
-    action,
-    dutyId,
-  });
-  await log.save();
+const logActivity = async ({ userId, userName, role, action, dutyId }) => {
+  try {
+    const roleArray = Array.isArray(role) ? role : [role];
+
+    await ActivityLog.create({
+      userId,
+      userName,
+      role: roleArray,
+      action,
+      dutyId,
+      timestamp: new Date(),
+    });
+  } catch (err) {
+    console.warn('Failed to log activity:', err.message);
+  }
 };
 
 export default logActivity;
