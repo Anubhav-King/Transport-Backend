@@ -6,6 +6,8 @@ import multer from "multer";
 import path from "path";
 import Setting from "../models/Setting.js"
 import TripCounter from "../models/TripCounter.js";
+import logActivity from '../utils/logActivity.js';
+
 
 // Utility to generate sequential Trip ID
 const generateTripID = async () => {
@@ -57,12 +59,21 @@ router.patch("/:id/cancel", verifyToken, async (req, res) => {
     duty.cancellationReason = reason;
     await duty.save();
 
+    // ✅ Log before responding
+    await logActivity({
+      userId: req.user.id,
+      role: req.user.role,
+      action: `Cancelled duty (Reason: ${reason})`,
+      dutyId: duty._id,
+    });
+
     res.json({ message: "Duty cancelled successfully" });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Error cancelling duty" });
   }
 });
+
 
 // Assign Car & Chauffeur
 router.patch("/:id", verifyToken, async (req, res) => {
@@ -77,26 +88,40 @@ router.patch("/:id", verifyToken, async (req, res) => {
       return res.status(400).json({ message: `Cannot update duty with status: ${duty.status}` });
     }
 
+    const previousCar = duty.carNumber;
+    const previousChauffeur = duty.chauffeurName;
+
     duty.carNumber = carNumber || duty.carNumber;
     duty.chauffeurName = chauffeurName || duty.chauffeurName;
 
-    if (carNumber && chauffeurName) {
-      duty.status = "active";
-      duty.statusHistory.push({ status: 'active', timestamp: new Date() });
-    }
+    // If both assigned and status is still pending, move to active
     if (carNumber && chauffeurName && duty.status === "pending") {
       duty.status = "active";
-      duty.statusHistory.push({ status: 'active', timestamp: new Date() });
+      duty.statusHistory.push({ status: "active", timestamp: new Date() });
     }
 
-
     await duty.save();
+
+    // ✅ Optional: Log assignment change
+    let action = `Updated car/chauffeur assignment`;
+    if (previousCar !== carNumber || previousChauffeur !== chauffeurName) {
+      action = `Assigned Car: ${carNumber}, Chauffeur: ${chauffeurName}`;
+    }
+
+    await logActivity({
+      userId: req.user.id,
+      role: req.user.role,
+      action,
+      dutyId: duty._id,
+    });
+
     res.json({ message: "Duty updated successfully", duty });
   } catch (err) {
     console.error("Duty update error:", err);
     res.status(500).json({ message: "Error updating duty" });
   }
 });
+
 
 // Start Trip
 router.patch("/:id/start", verifyToken, async (req, res) => {
@@ -298,6 +323,15 @@ router.patch("/verify-transport/:id", verifyToken, async (req, res) => {
     duty.statusHistory.push({ status: 'pending-verification-concierge', timestamp: new Date() });
 
     await duty.save();
+
+    // ✅ Log the verification
+    await logActivity({
+      userId: req.user.id,
+      role: req.user.role,
+      action: `Verified Transport Duty ${duty.tripID || duty._id}`,
+      dutyId: duty._id,
+    });
+
     res.json({ message: 'Verified by Transport', duty });
   } catch (err) {
     console.error('Transport verification error:', err);
@@ -332,7 +366,7 @@ router.patch("/verify-concierge/:id", verifyToken, async (req, res) => {
         vehicleType: duty.vehicleType,
         additionalKm: 0,
         additionalHours: 0,
-        charges: duty.charges, // ✅ important
+        charges: duty.charges,
       });
 
       originalGuestCharge = originalGuest;
@@ -352,7 +386,7 @@ router.patch("/verify-concierge/:id", verifyToken, async (req, res) => {
       discountPercentage: discount,
       applyDiscount: true,
       verifiedExpenses: duty.verifiedExpenses || [],
-      charges: duty.charges, // ✅ important
+      charges: duty.charges,
     });
 
     // Step 3: Save updated data
@@ -367,12 +401,22 @@ router.patch("/verify-concierge/:id", verifyToken, async (req, res) => {
     duty.statusHistory.push({ status: 'completed', timestamp: new Date() });
 
     await duty.save();
+
+    // ✅ Log activity
+    await logActivity({
+      userId: req.user.id,
+      role: req.user.role,
+      action: `Verified & Completed Duty ${duty.tripID || duty._id}`,
+      dutyId: duty._id,
+    });
+
     res.json({ message: 'Verified by Concierge. Duty marked as completed.', duty });
   } catch (err) {
     console.error('Concierge verification error:', err);
     res.status(500).json({ message: 'Concierge verification failed' });
   }
 });
+
 
 // Create New Duty
 
@@ -408,7 +452,7 @@ router.post("/", verifyToken, async (req, res) => {
       packageCode,
       discountPercentage,
       applyDiscount: discountPercentage > 0 && charges === "Chargeable",
-      charges, // 'Chargeable', 'Complimentary', 'Part of Package'
+      charges,
     });
 
     // ✅ Generate trip ID
@@ -445,12 +489,22 @@ router.post("/", verifyToken, async (req, res) => {
     });
 
     await newDuty.save();
+
+    // ✅ Log activity
+    await logActivity({
+      userId: req.user.id,
+      role: req.user.role,
+      action: `Created new duty for ${guestName} (${tripID})`,
+      dutyId: newDuty._id,
+    });
+
     res.status(201).json({ message: "Duty created successfully", duty: newDuty });
   } catch (err) {
     console.error("Duty Save Error:", err);
     res.status(500).json({ message: "Server error while saving duty" });
   }
 });
+
 
 // Recalculate Charges (used in verify modal save button)
 router.post("/calculate-charges/:id", verifyToken, async (req, res) => {

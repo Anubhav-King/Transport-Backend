@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import verifyToken from '../middleware/auth.js';
+import RoleChangeLog from '../models/RoleChangeLog.js';
+
 
 const router = express.Router();
 
@@ -17,6 +19,16 @@ router.post('/register', verifyToken, async (req, res) => {
     const hashed = await bcrypt.hash('Monday01', 10);
     const user = new User({ name, mobile, role, password: hashed });
     await user.save();
+
+    // 🔍 Log creation
+    await RoleChangeLog.create({
+      userId: user._id,
+      changedBy: req.user.id,
+      oldRoles: [],
+      newRoles: Array.isArray(role) ? role : [role],
+      action: 'created',
+      timestamp: new Date(),
+    });
 
     res.status(201).json({ message: 'User registered with default password Monday01' });
   } catch (err) {
@@ -80,25 +92,107 @@ router.get('/users', verifyToken, async (req, res) => {
 });
 
 // ❌ Delete User
-router.delete('/user/:id', verifyToken, async (req, res) => {
+router.delete("/user/:id", verifyToken, async (req, res) => {
+  const { id } = req.params;
+
   try {
-    await User.findByIdAndDelete(req.params.id);
-    res.json({ message: 'User deleted' });
+    const user = await User.findById(id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Protect Master Admin
+    if (user.role === 'Admin' && user._id.toString() === process.env.MASTER_ADMIN_ID) {
+      return res.status(403).json({ message: "Cannot delete the master admin" });
+    }
+
+    // 🔍 Log before deletion
+    await RoleChangeLog.create({
+      userId: user._id,
+      changedBy: req.user.id,
+      oldRoles: Array.isArray(user.role) ? user.role : [user.role],
+      newRoles: [],
+      action: 'deleted',
+      timestamp: new Date(),
+    });
+
+    await User.findByIdAndDelete(id);
+    res.json({ message: "User deleted successfully" });
   } catch (err) {
-    console.error('Delete Error:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("User deletion error:", err);
+    res.status(500).json({ message: "Server error while deleting user" });
   }
 });
 
+
 // ✏️ Update Role
-router.patch('/update-jobtitles/:id', verifyToken, async (req, res) => {
+router.patch("/update-jobtitles/:id", verifyToken, async (req, res) => {
+  const { id } = req.params;
+  const { role, passcode, action, roles } = req.body;
+
   try {
-    const { role } = req.body;
-    await User.findByIdAndUpdate(req.params.id, { role });
-    res.json({ message: 'User role updated' });
+    const user = await User.findById(id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (!Array.isArray(user.role)) user.role = [user.role];
+
+    let oldRoles = [...user.role];
+
+    // If full role array is being passed (from AdminDashboard)
+    if (roles) {
+      if (roles.includes('Admin') && !roles.includes('Concierge')) {
+        return res.status(400).json({ message: 'Admin requires Concierge' });
+      }
+
+      if (roles.includes('Admin') && !oldRoles.includes('Admin')) {
+        if (passcode !== 'King@2025') {
+          return res.status(403).json({ message: 'Invalid passcode for Admin access' });
+        }
+      }
+
+      user.role = roles;
+    } else if (role && action) {
+      // Support legacy add/remove
+      if (action === 'add') {
+        if (role === 'Admin' && !user.role.includes('Admin')) {
+          if (passcode !== 'King@2025') {
+            return res.status(403).json({ message: 'Invalid passcode for Admin access' });
+          }
+        }
+        if (!user.role.includes(role)) user.role.push(role);
+      } else if (action === 'remove') {
+        user.role = user.role.filter((r) => r !== role);
+      }
+    }
+
+    await user.save();
+
+    // Log the change
+    await RoleChangeLog.create({
+      userId: id,
+      changedBy: req.user.id,
+      oldRoles,
+      newRoles: user.role,
+      timestamp: new Date(),
+    });
+
+    res.json({ message: "Role(s) updated successfully" });
   } catch (err) {
-    console.error('Role Update Error:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("Role update error:", err);
+    res.status(500).json({ message: "Server error while updating role" });
+  }
+});
+
+// routes/auth.js
+router.get("/role-change-logs", verifyToken, async (req, res) => {
+  try {
+    const logs = await RoleChangeLog.find()
+      .sort({ timestamp: -1 })
+      .populate('userId', 'name')        // ✅ ensure name is populated
+      .populate('changedBy', 'name');    // ✅ same here
+
+    res.json(logs);
+  } catch (err) {
+    console.error("Error fetching role change logs:", err);
+    res.status(500).json({ message: "Failed to fetch role logs" });
   }
 });
 
