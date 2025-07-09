@@ -436,6 +436,9 @@ router.post("/", verifyToken, async (req, res) => {
     const {
       guestName,
       guestMobile,
+      guestType,           // ✅ Add this
+      roomNumber,          // ✅ Add this
+      mobileNumber,
       dutyType,
       pickupDateTime,
       pickupLocation,
@@ -472,6 +475,9 @@ router.post("/", verifyToken, async (req, res) => {
     const newDuty = new Duty({
       guestName,
       guestMobile,
+      guestType,           // ✅ Add this
+      roomNumber,          // ✅ Add this
+      mobileNumber,
       dutyType,
       pickupDateTime,
       pickupLocation,
