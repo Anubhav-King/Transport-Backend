@@ -59,8 +59,9 @@ router.get('/', verifyToken, async (req, res) => {
     const duties = await Duty.find(query);
 
     const summary = duties.map((duty) => ({
-      tripID: duty._id.toString(), // 👈 Add this line
-      date: dayjs(duty.pickupDate).format('DD-MM-YYYY'),
+      _id: duty._id.toString(),              // ✅ used for fetching full duty
+      tripID: duty.tripID || '',             // ✅ shown in table
+      date: dayjs(duty.pickupDateTime).format('DD-MM-YYYY'),
       dutyType: duty.dutyType,
       vehicleType: duty.vehicleType,
       packageName: duty.packageName || '',

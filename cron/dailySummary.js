@@ -1,4 +1,6 @@
 // cron/dailySummary.js
+import dotenv from 'dotenv';
+dotenv.config();
 import cron from 'node-cron';
 import { Resend } from 'resend';
 import Duty from '../models/Duty.js';
