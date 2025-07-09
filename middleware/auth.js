@@ -21,10 +21,20 @@ const verifyToken = async (req, res, next) => {
 
 // ✅ Additional middleware to restrict access to admins
 export const isAdmin = (req, res, next) => {
-    if ((req.user.role || '').toLowerCase() !== 'admin') {
-    return res.status(403).json({ message: 'Admin access required' });
+  const roles = req.user?.role;
+
+  if (Array.isArray(roles)) {
+    if (roles.map(r => r.toLowerCase()).includes("admin")) {
+      return next();
+    }
+  } else if (typeof roles === "string") {
+    if (roles.toLowerCase() === "admin") {
+      return next();
+    }
   }
-  next();
+
+  return res.status(403).json({ message: "Admin access required." });
 };
+
 
 export default verifyToken;

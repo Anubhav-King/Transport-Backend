@@ -30,6 +30,7 @@ const calculateCharges = async ({
       guestExtraChargesMap,
       backendExtraChargesMap,
       popChargesMap,
+      officeTransferRoutesList
     ] = await Promise.all([
       getSettingValue("guestCharges"),
       getSettingValue("backendCharges"),
@@ -38,7 +39,13 @@ const calculateCharges = async ({
       getSettingValue("guestExtraCharges"),
       getSettingValue("backendExtraCharges"),
       getSettingValue("popCharges"),
+      getSettingValue("officeTransferRoutes"),
     ]);
+
+    const officeTransferRoutesMap = Object.fromEntries(
+      (officeTransferRoutesList || []).map(route => [route.routeName, route])
+    );
+
 
     // === Guest Charges ===
     if (charges === "Complimentary") {
@@ -49,26 +56,41 @@ const calculateCharges = async ({
         total: 0,
       };
       guestCharge = { ...originalGuestCharge };
-    } else if (charges === "Part of Package") {
-      const popBase = popChargesMap?.[vehicleType]?.[dutyType] || 0;
-      originalGuestCharge = {
-        base: popBase,
-        extra: 0,
-        tax: Math.round(popBase * 0.12),
-        total: popBase + Math.round(popBase * 0.12),
-      };
-      guestCharge = { base: 0, extra: 0, tax: 0, total: 0 };
+      } else if (charges === "Part of Package") {
+        let popBase = 0;
+
+        if (dutyType === "Office Transfer") {
+          const route = officeTransferRoutesMap?.[packageCode];
+          const rate = route?.rates?.[vehicleType];
+          popBase = rate?.popCharges || 0;
+        } else {
+          popBase = popChargesMap?.[vehicleType]?.[dutyType] || 0;
+        }
+
+        originalGuestCharge = {
+          base: popBase,
+          extra: 0,
+          tax: Math.round(popBase * 0.12),
+          total: popBase + Math.round(popBase * 0.12),
+        };
+      guestCharge = { ...originalGuestCharge };
     } else {
       // === Standard Chargeable Flow ===
       if (dutyType === "Local Use") {
         const local = guestLocalUseMap?.[packageCode]?.[vehicleType];
         if (!local) throw new Error("Missing guest local use config");
         originalGuestCharge.base = local.guestCharge;
+      } else if (dutyType === "Office Transfer") {
+        const route = officeTransferRoutesMap?.[packageCode];
+        const rate = route?.rates?.[vehicleType];
+        if (!rate) throw new Error("Missing Office Transfer guest config");
+        originalGuestCharge.base = rate.guestCharge;
       } else {
         const guestPrice = guestChargesMap?.[vehicleType]?.[dutyType];
         if (guestPrice == null) throw new Error("Missing guest config");
         originalGuestCharge.base = guestPrice;
       }
+
 
       // Guest Extra Charges
       let guestExtra = 0;
@@ -109,11 +131,17 @@ const calculateCharges = async ({
       const local = backendLocalUseMap?.[packageCode]?.[vehicleType];
       if (!local) throw new Error("Missing backend local use config");
       backendCharge.base = local.backendCharge;
+    } else if (dutyType === "Office Transfer") {
+      const route = officeTransferRoutesMap?.[packageCode];
+      const rate = route?.rates?.[vehicleType];
+      if (!rate) throw new Error("Missing Office Transfer backend config");
+      backendCharge.base = rate.backendCharge;
     } else {
       const backendPrice = backendChargesMap?.[vehicleType]?.[dutyType];
       if (backendPrice == null) throw new Error("Missing backend config");
       backendCharge.base = backendPrice;
     }
+
 
     // Backend Extra
     backendCharge.extra = 0;
